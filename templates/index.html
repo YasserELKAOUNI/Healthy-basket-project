@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart MCP Groceries Health Basket Analysis</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #4CAF50 0%, #8BC34A 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            color: white;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+
+        .main-card {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            padding: 30px;
+            margin-bottom: 20px;
+        }
+
+        .query-section {
+            margin-bottom: 30px;
+        }
+
+        .query-form {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .query-input {
+            flex: 1;
+            padding: 15px;
+            border: 2px solid #e1e5e9;
+            border-radius: 10px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+
+        .query-input:focus {
+            outline: none;
+            border-color: #4CAF50;
+        }
+
+        .analyze-btn {
+            padding: 15px 30px;
+            background: linear-gradient(135deg, #4CAF50 0%, #8BC34A 100%);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        .analyze-btn:hover {
+            transform: translateY(-2px);
+        }
+
+        .analyze-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .options {
+            display: flex;
+            gap: 20px;
+            align-items: center;
+        }
+
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .checkbox-group input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+        }
+
+        .examples {
+            margin-top: 20px;
+        }
+
+        .examples h3 {
+            color: #4CAF50;
+            margin-bottom: 10px;
+        }
+
+        .example-queries {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .example-query {
+            padding: 8px 15px;
+            background: #f8f9fa;
+            border: 1px solid #e1e5e9;
+            border-radius: 20px;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-size: 14px;
+        }
+
+        .example-query:hover {
+            background: #4CAF50;
+            color: white;
+        }
+
+        .results-section {
+            display: none;
+        }
+
+        .results-section.show {
+            display: block;
+        }
+
+        .intent-info {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+            border-left: 4px solid #667eea;
+        }
+
+        .intent-info h3 {
+            color: #4CAF50;
+            margin-bottom: 10px;
+        }
+
+        .intent-details {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+
+        .intent-detail {
+            background: white;
+            padding: 10px;
+            border-radius: 8px;
+            border: 1px solid #e1e5e9;
+        }
+
+        .intent-detail strong {
+            color: #4CAF50;
+        }
+
+        .analysis-content {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 25px;
+            white-space: pre-wrap;
+            font-family: 'Courier New', monospace;
+            line-height: 1.6;
+            max-height: 600px;
+            overflow-y: auto;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #4CAF50;
+        }
+
+        .loading .spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #4CAF50;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .error {
+            background: #fee;
+            border: 1px solid #fcc;
+            border-radius: 10px;
+            padding: 20px;
+            color: #c33;
+            margin: 20px 0;
+        }
+
+        .status-bar {
+            background: #e8f5e8;
+            border: 1px solid #c3e6c3;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #28a745;
+        }
+
+        .footer {
+            text-align: center;
+            color: white;
+            margin-top: 30px;
+            opacity: 0.8;
+        }
+
+        @media (max-width: 768px) {
+            .query-form {
+                flex-direction: column;
+            }
+            
+            .options {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+            
+            .intent-details {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🛒 Smart MCP Groceries Health Basket Analysis</h1>
+            <p>Intelligent grocery recommendations and nutritional analysis using MCP tools and Claude AI</p>
+        </div>
+
+        <div class="main-card">
+            <div class="query-section">
+                <form class="query-form" id="analysisForm">
+                    <input 
+                        type="text" 
+                        class="query-input" 
+                        id="queryInput" 
+                        placeholder="Ask about groceries and health... (e.g., 'Find healthy breakfast options')"
+                        required
+                    >
+                    <button type="submit" class="analyze-btn" id="analyzeBtn">
+                        🔍 Analyze
+                    </button>
+                </form>
+
+                <div class="options">
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="useLLM" checked>
+                        <label for="useLLM">Generate AI analysis with Claude</label>
+                    </div>
+                </div>
+
+                <div class="examples">
+                    <h3>💡 Example Queries</h3>
+                    <div class="example-queries">
+                        <div class="example-query" onclick="setQuery('Find healthy breakfast options')">Find healthy breakfast options</div>
+                        <div class="example-query" onclick="setQuery('Show me organic vegetables')">Show organic vegetables</div>
+                        <div class="example-query" onclick="setQuery('Get product PROD_12345')">Get specific product</div>
+                        <div class="example-query" onclick="setQuery('List all indices')">List indices</div>
+                        <div class="example-query" onclick="setQuery('Search for nutrition data')">Nutrition data</div>
+                        <div class="example-query" onclick="setQuery('Find current promotions')">Current promotions</div>
+                        <div class="example-query" onclick="setQuery('Explore available data')">Explore data</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="status-bar" id="statusBar">
+                <div class="status-indicator">
+                    <div class="status-dot"></div>
+                    <span id="statusText">System Online</span>
+                </div>
+                <div id="lastUpdate"></div>
+            </div>
+
+            <div class="results-section" id="resultsSection">
+                <div id="resultsContent"></div>
+            </div>
+        </div>
+
+        <div class="footer">
+            <p>Powered by MCP Tools + Claude AI | Smart Groceries Health Basket Analysis</p>
+        </div>
+    </div>
+
+    <script>
+        let isLoading = false;
+
+        // Set query from example
+        function setQuery(query) {
+            document.getElementById('queryInput').value = query;
+        }
+
+        // Update status
+        function updateStatus(status, lastUpdate = null) {
+            document.getElementById('statusText').textContent = status;
+            if (lastUpdate) {
+                document.getElementById('lastUpdate').textContent = `Last update: ${lastUpdate}`;
+            }
+        }
+
+        // Show loading
+        function showLoading() {
+            isLoading = true;
+            document.getElementById('analyzeBtn').disabled = true;
+            document.getElementById('analyzeBtn').textContent = '🔄 Analyzing...';
+            
+            document.getElementById('resultsContent').innerHTML = `
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <p>Analyzing your grocery query with MCP tools and Claude AI...</p>
+                </div>
+            `;
+            document.getElementById('resultsSection').classList.add('show');
+        }
+
+        // Hide loading
+        function hideLoading() {
+            isLoading = false;
+            document.getElementById('analyzeBtn').disabled = false;
+            document.getElementById('analyzeBtn').textContent = '🔍 Analyze';
+        }
+
+        // Show error
+        function showError(message) {
+            document.getElementById('resultsContent').innerHTML = `
+                <div class="error">
+                    <strong>Error:</strong> ${message}
+                </div>
+            `;
+            document.getElementById('resultsSection').classList.add('show');
+        }
+
+        // Format results
+        function formatResults(data) {
+            const useLLM = document.getElementById('useLLM').checked;
+            
+            let html = `
+                <div class="intent-info">
+                    <h3>🎯 Query Analysis</h3>
+                    <div class="intent-details">
+                        <div class="intent-detail">
+                            <strong>Intent:</strong> ${data.intent.action}
+                        </div>
+                        <div class="intent-detail">
+                            <strong>Tool:</strong> ${data.intent.tool}
+                        </div>
+                        <div class="intent-detail">
+                            <strong>Confidence:</strong> ${(data.intent.confidence * 100).toFixed(1)}%
+                        </div>
+                        <div class="intent-detail">
+                            <strong>Arguments:</strong> ${JSON.stringify(data.intent.arguments)}
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            if (useLLM && data.llm_analysis) {
+                html += `
+                    <h3>🤖 Claude's Comprehensive Health Analysis</h3>
+                    <div class="analysis-content">${data.llm_analysis}</div>
+                `;
+            } else if (data.formatted_results) {
+                html += `
+                    <h3>📊 Raw Results</h3>
+                    <div class="analysis-content">${data.formatted_results}</div>
+                `;
+            } else {
+                html += `
+                    <h3>📊 MCP Results</h3>
+                    <div class="analysis-content">${JSON.stringify(data.mcp_result, null, 2)}</div>
+                `;
+            }
+
+            return html;
+        }
+
+        // Handle form submission
+        document.getElementById('analysisForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            if (isLoading) return;
+
+            const query = document.getElementById('queryInput').value.trim();
+            if (!query) return;
+
+            const useLLM = document.getElementById('useLLM').checked;
+
+            showLoading();
+            updateStatus('Analyzing query...');
+
+            try {
+                const formData = new FormData();
+                formData.append('query', query);
+                formData.append('use_llm', useLLM);
+
+                const response = await fetch('/api/analyze', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const data = await response.json();
+                
+                document.getElementById('resultsContent').innerHTML = formatResults(data);
+                updateStatus('Analysis complete', new Date().toLocaleTimeString());
+
+            } catch (error) {
+                console.error('Error:', error);
+                showError(error.message);
+                updateStatus('Error occurred');
+            } finally {
+                hideLoading();
+            }
+        });
+
+        // Check system status on load
+        async function checkStatus() {
+            try {
+                const response = await fetch('/api/status');
+                const data = await response.json();
+                
+                if (data.config_loaded) {
+                    updateStatus('System Online - Ready for analysis');
+                } else {
+                    updateStatus('System Online - Configuration needed');
+                }
+            } catch (error) {
+                updateStatus('System Offline');
+            }
+        }
+
+        // Initialize
+        checkStatus();
+    </script>
+</body>
+</html>

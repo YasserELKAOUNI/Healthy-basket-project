@@ -1,0 +1,123 @@
+#!/usr/bin/env python3
+"""
+Web UI for Smart MCP-based Email Phishing Analysis
+"""
+
+from fastapi import FastAPI, Request, Form, HTTPException
+from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
+import uvicorn
+import json
+import os
+from dotenv import load_dotenv
+from typing import Dict, Any, List, Optional
+import asyncio
+from datetime import datetime
+
+# Import our smart grocery MCP CLI functions
+from smart_grocery_cli import (
+    load_config, 
+    analyze_query_intent_with_llm, 
+    call_mcp_tool, 
+    generate_llm_analysis,
+    format_search_results,
+    format_product_result,
+    execute_smart_query
+)
+
+app = FastAPI(title="Smart MCP Groceries Health Basket Analysis UI", version="1.0.0")
+
+# Load configuration
+config = load_config()
+
+# Templates directory
+templates = Jinja2Templates(directory="templates")
+
+@app.get("/", response_class=HTMLResponse)
+async def home(request: Request):
+    """Main page"""
+    return templates.TemplateResponse("index.html", {"request": request})
+
+@app.post("/api/analyze")
+async def analyze_query(
+    query: str = Form(...),
+    use_llm: bool = Form(True)
+):
+    """Analyze query using smart MCP CLI"""
+    
+    try:
+        # Execute the smart query (includes intent analysis and MCP tool execution)
+        smart_result = execute_smart_query(query, config, verbose=False)
+        
+        # Prepare response
+        response_data = {
+            "query": query,
+            "intent": smart_result['intent'],
+            "mcp_result": smart_result['result'],
+            "timestamp": datetime.now().isoformat()
+        }
+        
+        if use_llm:
+            # Generate LLM analysis
+            try:
+                llm_analysis = generate_llm_analysis(query, smart_result['result'], config)
+                response_data["llm_analysis"] = llm_analysis
+            except Exception as e:
+                response_data["llm_analysis"] = f"LLM analysis failed: {str(e)}"
+                response_data["llm_error"] = True
+        else:
+            # Format raw results
+            if smart_result['intent']['action'] in ['search_products', 'nutrition_search', 'promotions_search', 'analyze_basket']:
+                response_data["formatted_results"] = format_search_results(smart_result['result'])
+            elif smart_result['intent']['action'] == 'get_product':
+                response_data["formatted_results"] = format_product_result(smart_result['result'])
+            else:
+                response_data["formatted_results"] = json.dumps(smart_result['result'], indent=2)
+        
+        return JSONResponse(content=response_data)
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
+
+@app.get("/api/tools")
+async def get_available_tools():
+    """Get available MCP tools"""
+    try:
+        mcp_payload = {
+            'jsonrpc': '2.0',
+            'id': 1,
+            'method': 'tools/list'
+        }
+        
+        headers = {
+            'Authorization': f'ApiKey {config["elastic_api_key"]}',
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+        }
+        
+        import requests
+        response = requests.post(config['elastic_url'], json=mcp_payload, headers=headers)
+        response.raise_for_status()
+        result = response.json()
+        
+        if 'result' in result:
+            tools = result['result'].get('tools', [])
+            return JSONResponse(content={"tools": tools})
+        else:
+            return JSONResponse(content={"tools": []})
+            
+    except Exception as e:
+        return JSONResponse(content={"tools": [], "error": str(e)})
+
+@app.get("/api/status")
+async def get_status():
+    """Get system status"""
+    return JSONResponse(content={
+        "status": "online",
+        "config_loaded": bool(config.get('elastic_url') and config.get('elastic_api_key')),
+        "timestamp": datetime.now().isoformat()
+    })
+
+if __name__ == "__main__":
+    uvicorn.run(app, host="0.0.0.0", port=8000)

@@ -1,0 +1,10 @@
+{
+  "sender": "security@bank-verify.com",
+  "sender_name": "Bank Security Team",
+  "subject": "URGENT: Account Verification Required",
+  "body": {
+    "text": "Dear Valued Customer,\n\nWe have detected suspicious activity on your account. To protect your funds, we need you to verify your identity immediately.\n\nClick the link below to verify your account:\nhttp://bit.ly/bank-verify-urgent\n\nThis verification must be completed within 24 hours or your account will be suspended.\n\nDo not reply to this email. If you did not request this verification, please contact our support team immediately.\n\nBest regards,\nBank Security Team"
+  },
+  "recipient": "customer@example.com",
+  "timestamp": "2025-10-16T10:21:09.153058"
+}

@@ -1,0 +1,10 @@
+{
+  "sender": "noreply@paypal.com",
+  "sender_name": "PayPal",
+  "subject": "Your monthly statement is ready",
+  "body": {
+    "text": "Dear PayPal Customer,\n\nYour monthly statement for January 2024 is now available in your PayPal account.\n\nTo view your statement:\n1. Log in to your PayPal account at paypal.com\n2. Go to Account Settings\n3. Click on Statements\n\nIf you have any questions about your statement, please contact our customer service team.\n\nThank you for using PayPal.\n\nPayPal Customer Service"
+  },
+  "recipient": "customer@example.com",
+  "timestamp": "2025-10-16T10:21:09.153068"
+}
