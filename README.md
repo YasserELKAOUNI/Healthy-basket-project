@@ -1,313 +1,267 @@
-# Email Phishing Analysis Agent
+# 🛒 Smart MCP Groceries Health Basket Analysis System
 
-An AI-powered email phishing detection system using AWS Bedrock Claude 4.5 and Elastic MCP Server. This agent analyzes emails for phishing indicators using advanced AI analysis combined with rule-based detection.
+A modern, intelligent system for grocery recommendations and nutritional analysis using MCP tools and Claude AI. This system helps users make informed decisions about their grocery shopping based on health and nutritional insights.
 
-## Features
+## ✨ Features
 
-- **AI-Powered Analysis**: Uses AWS Bedrock Claude 4.5 for sophisticated phishing detection
-- **Elastic Integration**: Connects to Elastic MCP Server for email storage and search
-- **Rule-Based Detection**: Combines AI analysis with traditional phishing indicators
-- **REST API**: FastAPI-based web service for easy integration
-- **CLI Tool**: Command-line interface for batch processing
-- **Similar Email Search**: Find related phishing attempts
-- **Comprehensive Reporting**: Detailed analysis results with confidence scores
+- **🧠 LLM-Powered Intent Analysis**: Uses Claude 4.5 Sonnet to intelligently analyze queries and select optimal MCP tools
+- **🤖 Advanced AI Analysis**: Generates comprehensive health and nutrition reports using Claude 4.5 Sonnet
+- **📱 Modern Web Interface**: Beautiful, responsive UI with green health-themed design
+- **🔧 Comprehensive MCP Integration**: Uses specialized catalog tools and platform core tools
+- **📊 Multiple Output Modes**: Choose between AI analysis, raw results, or rule-based fallback
+- **⚡ Rate Limit Handling**: Intelligent retry logic with exponential backoff and caching
+- **🔄 Graceful Fallbacks**: Rule-based system when LLM is unavailable
+- **🌍 Multilingual Support**: French language output for comprehensive analysis
 
-## Architecture
+## 🚀 Quick Start
 
-```
-┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
-│   Email Input   │───▶│  Phishing Agent  │───▶│  Analysis       │
-│                 │    │                  │    │  Results        │
-└─────────────────┘    └──────────────────┘    └─────────────────┘
-                                │
-                                ▼
-                       ┌──────────────────┐
-                       │  Elastic MCP     │
-                       │  Server          │
-                       └──────────────────┘
-                                │
-                                ▼
-                       ┌──────────────────┐
-                       │  AWS Bedrock     │
-                       │  Claude 4.5      │
-                       └──────────────────┘
-```
-
-## Prerequisites
-
-- Python 3.8+
-- AWS Account with Bedrock access
-- Elastic Cloud account or Elasticsearch instance
-- AWS CLI configured with appropriate permissions
-
-## Installation
-
-1. **Clone or download the project files**
-
-2. **Install dependencies**:
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-3. **Configure environment variables**:
-   ```bash
-   cp config.env.example .env
-   ```
-   
-   Edit `.env` with your configuration:
-   ```env
-   # Elastic MCP Server Configuration
-   ELASTIC_URL=https://searchsearch-a9ed61.kb.europe-west1.gcp.elastic.cloud
-   ELASTIC_API_KEY=your_elastic_api_key_here
-   
-   # AWS Bedrock Configuration
-   BEDROCK_REGION=us-east-1
-   AWS_ACCESS_KEY_ID=your_aws_access_key_here
-   AWS_SECRET_ACCESS_KEY=your_aws_secret_key_here
-   AWS_DEFAULT_REGION=us-east-1
-   ```
-
-4. **Configure AWS credentials**:
-   ```bash
-   aws configure
-   ```
-   
-   Or set environment variables:
-   ```bash
-   export AWS_ACCESS_KEY_ID=your_access_key
-   export AWS_SECRET_ACCESS_KEY=your_secret_key
-   export AWS_DEFAULT_REGION=us-east-1
-   ```
-
-## Usage
-
-### 1. REST API Server
-
-Start the FastAPI server:
+### 1. Install Dependencies
 ```bash
-python mcp_server.py
+pip install -r requirements.txt
 ```
 
-The API will be available at `http://localhost:8000`
+### 2. Configure Environment
+Create a `.env` file based on `config.env.example`:
+```env
+ELASTIC_URL=https://searchsearch-a9ed61.kb.europe-west1.gcp.elastic.cloud/api/agent_builder/mcp
+ELASTIC_API_KEY=your_api_key_here
+AWS_ACCESS_KEY_ID=your_aws_access_key
+AWS_SECRET_ACCESS_KEY=your_aws_secret_key
+BEDROCK_REGION=us-east-1
+```
 
-**API Endpoints**:
+**Note**: The `.env` file is automatically ignored by git for security.
 
-- `GET /` - API information
-- `GET /health` - Health check
-- `POST /analyze` - Analyze an email for phishing
-- `POST /search` - Search emails in database
-- `POST /index` - Index an email
-- `GET /stats` - Get analysis statistics
-- `GET /docs` - Interactive API documentation
-
-**Example API Usage**:
-
+### 3. Start the Web UI
 ```bash
-# Analyze an email
-curl -X POST "http://localhost:8000/analyze" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "email": {
-      "sender": "noreply@bank-security.com",
-      "subject": "URGENT: Verify Your Account",
-      "body": {"text": "Click here to verify: http://bit.ly/verify"},
-      "recipient": "user@example.com"
-    },
-    "include_similar_search": true,
-    "auto_index": true
-  }'
+python start_web_ui.py
 ```
 
-### 2. Command Line Interface
+### 4. Open Your Browser
+Navigate to: **http://localhost:8000**
 
-**Create a sample email**:
+## 🎯 Usage Examples
+
+### Query Types Supported:
+
+1. **Health Recommendations**
+   - "Find healthy breakfast options"
+   - "Recommend high-protein foods"
+   - "Show me organic vegetables"
+
+2. **Product Search**
+   - "Find red wine"
+   - "Search for gluten-free products"
+   - "Find low-sodium items"
+   - "Show me dairy alternatives"
+
+3. **Nutrition Analysis**
+   - "Find nutritious foods"
+   - "Show me high-fiber options"
+   - "Recommend vitamin-rich products"
+
+4. **Promotions & Deals**
+   - "Find current promotions"
+   - "Show me discounted items"
+   - "What's on sale?"
+
+5. **Data Exploration**
+   - "List all indices"
+   - "Explore available data"
+   - "What data is available?"
+
+6. **Product Retrieval**
+   - "Get product PROD_12345"
+   - "Show me item ABC_XYZ"
+
+## 🔧 CLI Usage
+
+### Smart Grocery CLI
 ```bash
-python cli.py create-sample
+# Full AI analysis with Claude 4.5 (default)
+python smart_grocery_cli.py "Find healthy breakfast options"
+python smart_grocery_cli.py "Find red wine"
+python smart_grocery_cli.py "Find current promotions"
+
+# Raw results only (bypasses LLM for faster results)
+python smart_grocery_cli.py "Find healthy breakfast options" --no-llm
+
+# Rule-based analysis (fallback when LLM is rate limited)
+python smart_grocery_cli.py "Find red wine" --no-llm
 ```
 
-**Analyze an email**:
-```bash
-python cli.py analyze sample_email.json
+### Available Commands
+- **Product Search**: Find products using intelligent tool selection
+- **Health Recommendations**: Get AI-powered nutritional advice in French
+- **Nutrition Analysis**: Analyze nutritional content and health benefits
+- **Promotions Search**: Find current deals and discounts
+- **Data Exploration**: Discover available data sources and indices
+- **Product Details**: Retrieve specific product information by ID
+
+## 🌐 Web Interface Features
+
+### Modern Health-Themed Design
+- **Green Color Scheme**: Represents health, nature, and freshness
+- **Responsive Layout**: Works on desktop, tablet, and mobile
+- **Intuitive Interface**: Easy-to-use query input with examples
+- **Real-time Status**: Live system status with health indicators
+
+### Interactive Elements
+- **Smart Query Input**: Natural language processing for grocery queries
+- **Example Queries**: Click-to-use health-focused examples
+- **AI Analysis Toggle**: Choose between AI insights or raw data
+- **Loading Animations**: Visual feedback during processing
+
+### Results Display
+- **Intent Analysis**: Shows detected query intent and confidence
+- **Comprehensive Health Analysis**: 7-section AI-generated nutrition reports
+- **Raw Results**: Formatted MCP tool results for debugging
+- **Error Handling**: Clear error messages and troubleshooting
+
+## 🧠 AI Analysis Sections
+
+When LLM analysis is enabled, Claude 4.5 Sonnet generates comprehensive analysis in French:
+
+1. **Direct Answer**: Immediate response to your grocery/health question
+2. **Nutritional Analysis**: Detailed analysis of nutritional value and health benefits
+3. **Health Recommendations**: Specific health benefits and dietary considerations
+4. **Shopping Guidance**: Best products for health goals and value analysis
+5. **Meal Planning Insights**: How products fit into balanced diets
+6. **Healthy Lifestyle Tips**: Additional dietary recommendations and lifestyle factors
+7. **Healthy Score Index**: Uses nutritional scoring for product evaluation
+
+## 🔍 MCP Tools Used
+
+### Core Platform Tools
+- **`platform_core_search`**: General search across Elasticsearch indices with flexible querying
+- **`platform_core_get_document_by_id`**: Retrieve full content of Elasticsearch documents by ID
+- **`platform_core_list_indices`**: List indices, aliases and datastreams from Elasticsearch cluster
+- **`platform_core_get_index_mapping`**: Retrieve mappings for specified indices
+- **`platform_core_index_explorer`**: Find relevant indices based on natural language queries
+
+### Specialized Catalog Tools
+- **`catalog_products_search`**: Search grocery products by text (specialized for grocery data)
+- **`catalog_nutrition_search`**: Retrieve nutrition rows filtered by health_score
+- **`catalog_promotions_search`**: Fetch SKUs with active promotions and promo payload
+
+## 📊 System Architecture
+
+```
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│   Web UI        │    │   Smart CLI     │    │   MCP Tools     │
+│   (FastAPI)     │◄──►│   (Python)      │◄──►│   (Elastic)     │
+└─────────────────┘    └─────────────────┘    └─────────────────┘
+         │                       │                       │
+         ▼                       ▼                       ▼
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│   HTML/CSS/JS   │    │   Intent        │    │   Data Storage  │
+│   Interface     │    │   Analysis      │    │   & Search      │
+└─────────────────┘    └─────────────────┘    └─────────────────┘
+         │                       │                       │
+         ▼                       ▼                       ▼
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│   User          │    │   Claude AI     │    │   Product       │
+│   Interaction   │    │   Analysis      │    │   Database      │
+└─────────────────┘    └─────────────────┘    └─────────────────┘
 ```
 
-**Analyze and index**:
-```bash
-python cli.py analyze sample_email.json --index
-```
+## 🎨 UI Components
 
-**Search emails**:
-```bash
-python cli.py search "urgent verify account"
-```
+### Query Interface
+- **Natural Language Input**: Ask questions about groceries and health
+- **Smart Examples**: Pre-built queries for common health scenarios
+- **Analysis Options**: Toggle between AI analysis and raw results
+- **Status Indicators**: Real-time system health monitoring
 
-### 3. Direct Python Usage
+### Results Display
+- **Intent Recognition**: Shows how the system interpreted your query
+- **Confidence Scoring**: Displays confidence level for tool selection
+- **Health Analysis**: Comprehensive nutritional and dietary insights
+- **Actionable Recommendations**: Practical advice for healthy shopping
 
-```python
-from email_phishing_analyzer import EmailPhishingAnalyzer
+## 🔒 Security & Privacy
 
-# Initialize analyzer
-analyzer = EmailPhishingAnalyzer(
-    elastic_url="https://searchsearch-a9ed61.kb.europe-west1.gcp.elastic.cloud",
-    elastic_api_key="your_api_key",
-    bedrock_region="us-east-1"
-)
+- **Environment Variables**: Secure configuration management
+- **API Key Authentication**: Proper MCP server authentication
+- **Input Validation**: Sanitized user inputs
+- **Error Handling**: Secure error messages without sensitive data
 
-# Email data
-email_data = {
-    "sender": "noreply@bank-security.com",
-    "subject": "URGENT: Verify Your Account",
-    "body": {"text": "Click here to verify: http://bit.ly/verify"},
-    "recipient": "user@example.com"
-}
+## 📱 Browser Compatibility
 
-# Analyze email
-result = analyzer.analyze_email(email_data)
+- **Chrome**: Full support with modern features
+- **Firefox**: Complete functionality
+- **Safari**: Full compatibility
+- **Edge**: Full support
+- **Mobile Browsers**: Responsive design for all devices
 
-print(f"Is Phishing: {result.is_phishing}")
-print(f"Confidence: {result.confidence_score}")
-print(f"Risk Factors: {result.risk_factors}")
-```
+## 🚨 Troubleshooting
 
-## Email Data Format
+### Common Issues:
 
-The agent expects email data in the following JSON format:
+1. **"System Offline"**
+   - Check if `.env` file is configured
+   - Verify Elastic URL and API key
+   - Ensure MCP server is accessible
 
-```json
-{
-  "sender": "sender@example.com",
-  "sender_name": "Sender Name",
-  "subject": "Email Subject",
-  "body": {
-    "text": "Plain text content",
-    "html": "<html>HTML content</html>"
-  },
-  "recipient": "recipient@example.com",
-  "timestamp": "2024-01-15T10:30:00Z",
-  "attachments": ["file1.pdf", "file2.doc"]
-}
-```
+2. **"LLM analysis failed" / "ThrottlingException"**
+   - **Rate Limiting**: Claude is experiencing high demand
+   - **Solution**: Use `--no-llm` flag for immediate results
+   - **Retry Logic**: System automatically retries with exponential backoff
+   - **Caching**: Repeated queries use cached results
 
-## Analysis Results
+3. **"Found 0 results"**
+   - **Data Compatibility**: Catalog tools may not match current data structure
+   - **Current Data**: System contains wine products from Belgian grocery store
+   - **Fallback**: Try different query types or use `platform_core_search`
 
-The analysis returns a comprehensive result object:
+4. **"Analysis failed"**
+   - Check MCP server connectivity
+   - Verify Elastic indices exist (`products`, `nutrition`, `promotions`)
+   - Check API key permissions
 
-```python
-@dataclass
-class PhishingAnalysisResult:
-    is_phishing: bool                    # Whether email is likely phishing
-    confidence_score: float              # Confidence score (0.0-1.0)
-    risk_factors: List[str]              # Identified risk factors
-    suspicious_urls: List[str]           # Suspicious URLs found
-    suspicious_domains: List[str]         # Suspicious domains
-    suspicious_keywords: List[str]       # Suspicious keywords/phrases
-    sender_analysis: Dict[str, Any]      # Sender reputation analysis
-    content_analysis: Dict[str, Any]     # Content analysis details
-    recommendations: List[str]           # Handling recommendations
-```
+### Debug Modes:
+- **Raw Results**: Use `--no-llm` flag to see MCP tool responses
+- **Rule-based**: System automatically falls back to rule-based analysis
+- **Caching**: Repeated queries are cached to avoid rate limits
 
-## Phishing Detection Features
+## 🔄 Recent Updates & Improvements
 
-### AI Analysis (Claude 4.5)
-- Content analysis for phishing patterns
-- Sender reputation assessment
-- URL and domain analysis
-- Grammar and urgency detection
-- Contextual understanding
+### Latest Enhancements:
+- **Claude 4.5 Sonnet**: Upgraded from Claude 3.5 to 4.5 for better analysis
+- **LLM Intent Analysis**: Intelligent query analysis using Claude 4.5
+- **Rate Limit Handling**: Retry logic with exponential backoff and caching
+- **French Language Output**: Comprehensive analysis in French
+- **Healthy Score Index**: Nutritional scoring integration
+- **Comprehensive MCP Tools**: Added specialized catalog tools
+- **Graceful Fallbacks**: Rule-based system when LLM unavailable
 
-### Rule-Based Detection
-- Suspicious keyword detection
-- URL shortener identification
-- Domain reputation checking
-- Pattern matching for common phishing tactics
+### System Evolution:
+- **Original**: Email phishing analysis system
+- **Repurposed**: Grocery health basket analysis
+- **Enhanced**: LLM-powered intent analysis and advanced features
+- **Optimized**: Rate limiting, caching, and multilingual support
 
-### Elastic Integration
-- Email storage and indexing
-- Similar email search
-- Historical analysis
-- Pattern recognition across campaigns
+## 🎉 Success!
 
-## Configuration Options
+You now have a fully functional groceries health basket analysis system! The system uses Claude 4.5 Sonnet for intelligent intent analysis and comprehensive health recommendations in French.
 
-### Environment Variables
+### Key Capabilities:
+- **🧠 Smart Tool Selection**: LLM-powered analysis chooses optimal MCP tools
+- **🤖 Advanced AI Analysis**: Claude 4.5 generates detailed nutritional insights
+- **⚡ Robust Performance**: Rate limiting handling with graceful fallbacks
+- **🌍 Multilingual**: French language output for comprehensive analysis
+- **📊 Multiple Modes**: AI analysis, raw results, or rule-based fallback
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `ELASTIC_URL` | Elastic MCP Server URL | Required |
-| `ELASTIC_API_KEY` | Elastic API key | Optional |
-| `BEDROCK_REGION` | AWS Bedrock region | `us-east-1` |
-| `AWS_ACCESS_KEY_ID` | AWS access key | Required |
-| `AWS_SECRET_ACCESS_KEY` | AWS secret key | Required |
-| `LOG_LEVEL` | Logging level | `INFO` |
+**Happy healthy shopping! 🛒🥗🍷**
 
-### Customization
+---
 
-You can customize the phishing detection by modifying:
+## 📝 Project Files
 
-- `phishing_keywords` list in `EmailPhishingAnalyzer`
-- `suspicious_domains` list for URL shorteners
-- Claude prompts for different analysis approaches
-- Elasticsearch queries for search functionality
-
-## Security Considerations
-
-- Store API keys securely using environment variables
-- Use HTTPS for all API communications
-- Implement rate limiting for production use
-- Regularly update dependencies
-- Monitor API usage and costs
-
-## Troubleshooting
-
-### Common Issues
-
-1. **AWS Bedrock Access Denied**:
-   - Ensure your AWS account has Bedrock access
-   - Check IAM permissions for Bedrock models
-   - Verify region configuration
-
-2. **Elastic Connection Failed**:
-   - Check Elastic URL and API key
-   - Verify network connectivity
-   - Ensure Elasticsearch is running
-
-3. **Analysis Timeout**:
-   - Check Claude model availability
-   - Verify request size limits
-   - Monitor AWS service status
-
-### Debug Mode
-
-Enable debug logging:
-```bash
-export LOG_LEVEL=DEBUG
-python mcp_server.py
-```
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests if applicable
-5. Submit a pull request
-
-## License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
-
-## Support
-
-For issues and questions:
-- Check the troubleshooting section
-- Review AWS Bedrock documentation
-- Consult Elastic MCP Server documentation
-- Open an issue in the repository
-
-## Roadmap
-
-- [ ] Real-time email monitoring
-- [ ] Advanced ML models integration
-- [ ] Dashboard and visualization
-- [ ] Multi-language support
-- [ ] Integration with email providers
-- [ ] Automated response actions
+- **`smart_grocery_cli.py`**: Main CLI with LLM-powered intent analysis
+- **`web_ui.py`**: FastAPI web interface
+- **`start_web_ui.py`**: Web server launcher
+- **`config.env.example`**: Environment configuration template
+- **`.gitignore`**: Comprehensive git ignore rules
+- **`requirements.txt`**: Python dependencies
+- **`README.md`**: This documentation
