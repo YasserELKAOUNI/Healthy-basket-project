@@ -744,6 +744,7 @@ Examples:
         print("Error: Missing ELASTIC_URL or ELASTIC_API_KEY environment variables")
         return
     
+    print("[DEPRECATION] smart_grocery_cli.py is deprecated. Use smart_grocery_service_cli.py instead.")
     print(f"🛒 Smart Grocery Health Analysis")
     print(f"User Query: {args.query}")
     print("=" * 80)
