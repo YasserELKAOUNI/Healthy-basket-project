@@ -150,6 +150,21 @@ class MCPClient(ToolInvoker):
     def platform_core_get_index_mapping(self, *, indices: List[str]) -> Dict[str, Any]:
         return self.call_tool("platform_core_get_index_mapping", {"indices": indices})
 
+    def ping(self) -> Dict[str, Any]:
+        """Lightweight connectivity check measuring roundtrip time.
+
+        Tries a 'ping' tool if available; otherwise uses tools/list.
+        Returns: { okay: bool, duration_ms: float, method: str }
+        """
+        import time as _t
+        try:
+            start = _t.perf_counter()
+            self.list_tools()
+            dur_ms = (_t.perf_counter() - start) * 1000.0
+            return {"okay": True, "duration_ms": dur_ms, "method": "tools/list"}
+        except Exception:
+            return {"okay": False, "duration_ms": 0.0, "method": "tools/list"}
+
 
 def parse_mcp_content_text(mcp_result: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     """Extract and parse JSON payload from MCP CallToolResult.content.
