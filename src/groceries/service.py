@@ -11,6 +11,7 @@ import json
 import re
 
 from src.core.config import get_settings
+from typing import Callable
 from src.core.mcp_client import MCPClient, parse_mcp_content_text
 from src.core.llm_client import BedrockLLMClient
 from src.adapters.tool_invoker import ToolInvoker
@@ -135,22 +136,49 @@ Guidelines: prefer platform_core_search for general product search; nutrition ->
     return {'intent': 'search_products', 'action': 'search_products', 'tool': 'catalog_products_search', 'confidence': 0.5, 'reasoning': 'Fallback'}
 
 
+def _args_platform_core_search(user_query: str, index: str, *, limit: int, offset: int) -> Dict[str, Any]:
+    return {'query': user_query, 'index': index, 'limit': limit, 'offset': offset}
+
+
+def _args_nl_query(user_query: str, index: str, *, limit: int, offset: int) -> Dict[str, Any]:
+    return {'nlQuery': user_query, 'limit': limit, 'offset': offset}
+
+
+def _args_get_by_id(user_query: str, index: str, *, limit: int, offset: int) -> Dict[str, Any]:
+    m = re.search(r'(get|retrieve|show)\s+(product|item)\s+([a-zA-Z0-9_-]+)', user_query.lower())
+    if m:
+        return {'index': index, 'id': m.group(3)}
+    return {}
+
+
+def _args_list_indices(user_query: str, index: str, *, limit: int, offset: int) -> Dict[str, Any]:
+    return {}
+
+
+def _args_get_mapping(user_query: str, index: str, *, limit: int, offset: int) -> Dict[str, Any]:
+    return {'indices': [index]}
+
+
+def _args_index_explorer(user_query: str, index: str, *, limit: int, offset: int) -> Dict[str, Any]:
+    return {'query': user_query, 'limit': limit, 'offset': offset}
+
+
+TOOL_ARG_BUILDERS: Dict[str, Any] = {
+    'platform_core_search': _args_platform_core_search,
+    'catalog_products_search': _args_nl_query,
+    'catalog_nutrition_search': _args_nl_query,
+    'catalog_promotions_search': _args_nl_query,
+    'platform_core_get_document_by_id': _args_get_by_id,
+    'platform_core_list_indices': _args_list_indices,
+    'platform_core_get_index_mapping': _args_get_mapping,
+    'platform_core_index_explorer': _args_index_explorer,
+}
+
+
 def _build_arguments(tool: str, user_query: str, products_index: str, *, limit: int, offset: int) -> Dict[str, Any]:
-    if tool == 'platform_core_search':
-        return {'query': user_query, 'index': products_index, 'limit': limit, 'offset': offset}
-    if tool in ('catalog_products_search', 'catalog_nutrition_search', 'catalog_promotions_search'):
-        return {'nlQuery': user_query, 'limit': limit, 'offset': offset}
-    if tool == 'platform_core_get_document_by_id':
-        m = re.search(r'(get|retrieve|show)\s+(product|item)\s+([a-zA-Z0-9_-]+)', user_query.lower())
-        if m:
-            return {'index': products_index, 'id': m.group(3)}
-        return {}
-    if tool == 'platform_core_list_indices':
-        return {}
-    if tool == 'platform_core_get_index_mapping':
-        return {'indices': [products_index]}
-    if tool == 'platform_core_index_explorer':
-        return {'query': user_query, 'limit': limit, 'offset': offset}
+    builder = TOOL_ARG_BUILDERS.get(tool)
+    if builder:
+        return builder(user_query, products_index, limit=limit, offset=offset)
     return {}
 
 
