@@ -182,7 +182,7 @@ def _build_arguments(tool: str, user_query: str, products_index: str, *, limit: 
     return {}
 
 
-def _enrich_search_results_with_content(raw: Dict[str, Any], client: MCPClient) -> Dict[str, Any]:
+def _enrich_search_results_with_content(raw: Dict[str, Any], client: MCPClient, *, top_n: int = 5) -> Dict[str, Any]:
     parsed = parse_mcp_content_text(raw)
     if not parsed or 'results' not in parsed:
         return raw
@@ -190,7 +190,7 @@ def _enrich_search_results_with_content(raw: Dict[str, Any], client: MCPClient) 
     validated = try_validate_search_payload(parsed)
     hits = parsed['results'] if validated is None else [h.model_dump() for h in validated.results]
     enriched_hits: List[Dict[str, Any]] = []
-    for hit in hits[:5]:
+    for hit in hits[:max(0, top_n)]:
         ref = hit.get('data', {}).get('reference', {})
         doc_id = ref.get('id')
         index_name = ref.get('index')
@@ -275,7 +275,7 @@ def execute(
     # Enrich if applicable
     pagination: Dict[str, Any] = {"limit": limit, "offset": offset}
     if intent['action'] in ['search_products', 'nutrition_search', 'promotions_search', 'analyze_basket'] or intent['tool'] == 'platform_core_search':
-        raw = _enrich_search_results_with_content(raw, client)
+        raw = _enrich_search_results_with_content(raw, client, top_n=top_n)
         try:
             total = raw.get('enriched_content', {}).get('total_hits')
             shown = len(raw.get('enriched_content', {}).get('enriched_hits', []))
