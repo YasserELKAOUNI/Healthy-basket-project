@@ -12,6 +12,8 @@ from __future__ import annotations
 
 import json
 from typing import Any, Dict, List, Optional, Tuple
+import logging
+import time
 
 import requests
 
@@ -24,32 +26,69 @@ class MCPError(RuntimeError):
 
 
 class MCPClient(ToolInvoker):
-    def __init__(self, *, elastic_url: Optional[str] = None, api_key: Optional[str] = None, timeout_s: Optional[int] = None):
+    def __init__(
+        self,
+        *,
+        elastic_url: Optional[str] = None,
+        api_key: Optional[str] = None,
+        timeout_s: Optional[int] = None,
+        identity: Optional[str] = None,
+        extra_headers: Optional[Dict[str, str]] = None,
+    ):
         cfg = get_settings()
         self.base_url = elastic_url or cfg.elastic_url
         self.api_key = api_key or cfg.elastic_api_key
         self.timeout_s = timeout_s or cfg.http_timeout_seconds
+        self.identity = identity
 
         self._session = requests.Session()
-        self._session.headers.update({
+        headers: Dict[str, str] = {
             "Authorization": f"ApiKey {self.api_key}",
             "Content-Type": "application/json",
             "Accept": "application/json",
-        })
+        }
+        if identity:
+            headers["X-Agent-Id"] = identity
+        if extra_headers:
+            headers.update(extra_headers)
+        self._session.headers.update(headers)
+
+        self._logger = logging.getLogger(__name__)
 
     def _rpc(self, method: str, params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         payload: Dict[str, Any] = {"jsonrpc": "2.0", "id": 1, "method": method}
         if params is not None:
             payload["params"] = params
-        try:
-            resp = self._session.post(self.base_url, json=payload, timeout=self.timeout_s)
-            resp.raise_for_status()
-            data = resp.json()
-        except Exception as e:
-            raise MCPError(f"MCP request failed for {method}: {e}") from e
+        # Audit-style log (stderr)
+        self._logger.info("mcp.rpc call", extra={"method": method, "has_params": bool(params)})
+
+        retries = 3
+        backoff = 1.5
+        for attempt in range(retries):
+            try:
+                resp = self._session.post(self.base_url, json=payload, timeout=self.timeout_s)
+                if resp.status_code == 429 and attempt < retries - 1:
+                    sleep_s = backoff ** attempt
+                    self._logger.warning("mcp.rpc 429 throttled; backing off", extra={"sleep": sleep_s})
+                    time.sleep(sleep_s)
+                    continue
+                resp.raise_for_status()
+                data = resp.json()
+                break
+            except Exception as e:
+                if attempt < retries - 1:
+                    time.sleep(backoff ** attempt)
+                    continue
+                raise MCPError(
+                    f"MCP request failed for {method}: {e}. "
+                    f"If this is rate limiting, try again later or reduce request volume."
+                ) from e
 
         if "error" in data:
-            raise MCPError(f"MCP error for {method}: {data['error']}")
+            raise MCPError(
+                f"MCP error for {method}: {data['error']}. "
+                f"Check tool name/arguments and permissions."
+            )
         if "result" not in data:
             raise MCPError(f"MCP invalid response for {method}: missing result")
         return data["result"]
