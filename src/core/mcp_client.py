@@ -55,6 +55,24 @@ class MCPClient(ToolInvoker):
 
         self._logger = logging.getLogger(__name__)
 
+    def initialize(self, *, client_name: str = "healthy-basket-client", client_version: str = "1.0.0", protocol_version: Optional[str] = None) -> Dict[str, Any]:
+        """Perform MCP initialize handshake and store server info/capabilities.
+
+        Returns the raw 'result' object from the initialize call.
+        """
+        from .constants import PROTOCOL_VERSION
+
+        params = {
+            "protocolVersion": protocol_version or PROTOCOL_VERSION,
+            "capabilities": {},
+            "clientInfo": {"name": client_name, "version": client_version},
+        }
+        result = self._rpc("initialize", params)
+        # Cache some fields for later debugging/inspection
+        self.server_info = result.get("serverInfo")  # type: ignore[attr-defined]
+        self.capabilities = result.get("capabilities")  # type: ignore[attr-defined]
+        return result
+
     def _rpc(self, method: str, params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         payload: Dict[str, Any] = {"jsonrpc": "2.0", "id": 1, "method": method}
         if params is not None:
@@ -100,6 +118,23 @@ class MCPClient(ToolInvoker):
 
     def call_tool(self, name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
         result = self._rpc("tools/call", {"name": name, "arguments": arguments})
+        # Surface tool-level errors per MCP guidance
+        try:
+            if result.get("isError"):
+                # Try to extract a human-friendly message from content
+                msg = None
+                content = result.get("content", [])
+                if isinstance(content, list) and content:
+                    first = content[0]
+                    if isinstance(first, dict):
+                        msg = first.get("text") or first.get("error")
+                if msg:
+                    result["error"] = f"Tool '{name}' error: {msg}"
+                else:
+                    result["error"] = f"Tool '{name}' reported an error. Check arguments/permissions."
+        except Exception:
+            # Don't disrupt normal flow on error surfacing
+            pass
         return result
 
     # Convenience methods for common tools
@@ -117,18 +152,44 @@ class MCPClient(ToolInvoker):
 
 
 def parse_mcp_content_text(mcp_result: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-    """Extract and parse the JSON payload embedded in `result.content[0].text`.
+    """Extract and parse JSON payload from MCP CallToolResult.content.
 
-    Returns the parsed dict or None if missing/malformed.
+    Preference order:
+    1) content items with JSON mimeType (e.g., application/json) and 'text' body
+    2) first content item with 'json' field (if present)
+    3) first content item with 'text' that contains JSON
+    Returns parsed dict or None.
     """
     try:
         content = mcp_result.get("content", [])
-        if not content:
+        if not isinstance(content, list) or not content:
             return None
-        text = content[0].get("text")
-        if not text:
-            return None
-        return json.loads(text)
+
+        # 1) Prefer JSON mimeType
+        for item in content:
+            if isinstance(item, dict):
+                mime = item.get("mimeType") or item.get("mime")
+                if mime and "json" in str(mime).lower():
+                    txt = item.get("text")
+                    if isinstance(txt, str):
+                        return json.loads(txt)
+
+        # 2) A 'json' field in item
+        for item in content:
+            if isinstance(item, dict) and "json" in item:
+                data = item.get("json")
+                if isinstance(data, dict):
+                    return data
+                if isinstance(data, str):
+                    return json.loads(data)
+
+        # 3) Fallback to first text
+        first = content[0]
+        if isinstance(first, dict):
+            txt = first.get("text")
+            if isinstance(txt, str):
+                return json.loads(txt)
+        return None
     except Exception:
         return None
 

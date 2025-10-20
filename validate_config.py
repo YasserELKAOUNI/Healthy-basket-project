@@ -88,12 +88,15 @@ def validate_elastic_config(config):
     
     # Test Elastic connection
     try:
-        # Use MCPClient to verify tools list as a connectivity check
+        # Use MCP initialize handshake to verify server and capabilities
         from src.core.mcp_client import MCPClient
         client = MCPClient(elastic_url=config['elastic_url'], api_key=config['elastic_api_key'])
-        tools = client.list_tools()
-        print("✅ Elastic MCP Server connection verified")
-        print(f"   Tools available: {len(tools)}")
+        result = client.initialize(client_name="healthy-basket-validator", client_version="1.0.0")
+        server_name = (result.get('serverInfo', {}) or {}).get('name', 'Unknown')
+        capabilities = result.get('capabilities', {}) or {}
+        print("✅ Elastic MCP Server connection verified via initialize")
+        print(f"   Server: {server_name}")
+        print(f"   Capabilities: {list(capabilities.keys())}")
         return True
     except Exception as e:
         print(f"❌ Elastic MCP Server connection failed: {e}")
