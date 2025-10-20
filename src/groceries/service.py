@@ -135,11 +135,11 @@ Guidelines: prefer platform_core_search for general product search; nutrition ->
     return {'intent': 'search_products', 'action': 'search_products', 'tool': 'catalog_products_search', 'confidence': 0.5, 'reasoning': 'Fallback'}
 
 
-def _build_arguments(tool: str, user_query: str, products_index: str) -> Dict[str, Any]:
+def _build_arguments(tool: str, user_query: str, products_index: str, *, limit: int, offset: int) -> Dict[str, Any]:
     if tool == 'platform_core_search':
-        return {'query': user_query, 'index': products_index}
+        return {'query': user_query, 'index': products_index, 'limit': limit, 'offset': offset}
     if tool in ('catalog_products_search', 'catalog_nutrition_search', 'catalog_promotions_search'):
-        return {'nlQuery': user_query}
+        return {'nlQuery': user_query, 'limit': limit, 'offset': offset}
     if tool == 'platform_core_get_document_by_id':
         m = re.search(r'(get|retrieve|show)\s+(product|item)\s+([a-zA-Z0-9_-]+)', user_query.lower())
         if m:
@@ -150,7 +150,7 @@ def _build_arguments(tool: str, user_query: str, products_index: str) -> Dict[st
     if tool == 'platform_core_get_index_mapping':
         return {'indices': [products_index]}
     if tool == 'platform_core_index_explorer':
-        return {'query': user_query}
+        return {'query': user_query, 'limit': limit, 'offset': offset}
     return {}
 
 
@@ -228,6 +228,9 @@ def execute(
     query: str,
     *,
     use_llm: bool = True,
+    limit: int = 20,
+    offset: int = 0,
+    top_n: int = 5,
     tool_invoker: ToolInvoker | None = None,
     llm_client: LLMClientProtocol | None = None,
 ) -> Dict[str, Any]:
@@ -238,19 +241,43 @@ def execute(
     intent = _analyze_query_intent_with_llm(query, llm_client) if use_llm else _analyze_query_intent_rule_based(query)
 
     # Build args and call tool
-    args = _build_arguments(intent['tool'], query, cfg.products_index)
+    args = _build_arguments(intent['tool'], query, cfg.products_index, limit=limit, offset=offset)
     raw = client.call_tool(intent['tool'], args)
 
     # Enrich if applicable
+    pagination: Dict[str, Any] = {"limit": limit, "offset": offset}
     if intent['action'] in ['search_products', 'nutrition_search', 'promotions_search', 'analyze_basket'] or intent['tool'] == 'platform_core_search':
         raw = _enrich_search_results_with_content(raw, client)
+        try:
+            total = raw.get('enriched_content', {}).get('total_hits')
+            shown = len(raw.get('enriched_content', {}).get('enriched_hits', []))
+            if isinstance(total, int):
+                pagination.update({
+                    'has_more': total > offset + shown,
+                    'next_offset': (offset + shown) if total > offset + shown else None,
+                })
+        except Exception:
+            pass
 
     out: Dict[str, Any] = {
         'query': query,
         'intent': intent,
         'mcp_result': raw,
+        'pagination': pagination,
         'schema_version': SCHEMA_VERSION,
     }
+    try:
+        from src.core.config import get_settings as _get_settings
+        settings = _get_settings()
+        rendered = json.dumps(out)
+        if len(rendered) > settings.character_limit:
+            out['truncated'] = True
+            out['truncation_message'] = (
+                f"Response length {len(rendered)} exceeds character limit {settings.character_limit}. "
+                f"Consider using 'limit'/'offset' or adding filters."
+            )
+    except Exception:
+        pass
 
     if use_llm:
         out['llm_analysis'] = _generate_llm_analysis(query, raw, llm_client)
