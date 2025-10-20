@@ -16,20 +16,16 @@ import asyncio
 from datetime import datetime
 
 # Import our smart grocery MCP CLI functions
+from src.groceries.service import execute as groceries_execute
 from smart_grocery_cli import (
-    load_config, 
-    analyze_query_intent_with_llm, 
-    call_mcp_tool, 
-    generate_llm_analysis,
     format_search_results,
     format_product_result,
-    execute_smart_query
 )
 
 app = FastAPI(title="Smart MCP Groceries Health Basket Analysis UI", version="1.0.0")
 
-# Load configuration
-config = load_config()
+# Configuration is provided via src.core.config inside the service
+config = None
 
 # Templates directory
 templates = Jinja2Templates(directory="templates")
@@ -48,32 +44,24 @@ async def analyze_query(
     
     try:
         # Execute the smart query (includes intent analysis and MCP tool execution)
-        smart_result = execute_smart_query(query, config, verbose=False)
+        smart_result = groceries_execute(query, use_llm=use_llm)
         
         # Prepare response
         response_data = {
             "query": query,
             "intent": smart_result['intent'],
-            "mcp_result": smart_result['result'],
+            "mcp_result": smart_result['mcp_result'],
             "timestamp": datetime.now().isoformat()
         }
         
-        if use_llm:
-            # Generate LLM analysis
-            try:
-                llm_analysis = generate_llm_analysis(query, smart_result['result'], config)
-                response_data["llm_analysis"] = llm_analysis
-            except Exception as e:
-                response_data["llm_analysis"] = f"LLM analysis failed: {str(e)}"
-                response_data["llm_error"] = True
-        else:
+        if not use_llm:
             # Format raw results
             if smart_result['intent']['action'] in ['search_products', 'nutrition_search', 'promotions_search', 'analyze_basket']:
-                response_data["formatted_results"] = format_search_results(smart_result['result'])
+                response_data["formatted_results"] = format_search_results(smart_result['mcp_result'])
             elif smart_result['intent']['action'] == 'get_product':
-                response_data["formatted_results"] = format_product_result(smart_result['result'])
+                response_data["formatted_results"] = format_product_result(smart_result['mcp_result'])
             else:
-                response_data["formatted_results"] = json.dumps(smart_result['result'], indent=2)
+                response_data["formatted_results"] = json.dumps(smart_result['mcp_result'], indent=2)
         
         return JSONResponse(content=response_data)
         

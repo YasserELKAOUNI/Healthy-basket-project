@@ -15,8 +15,24 @@ from dotenv import load_dotenv
 # Load environment variables
 load_dotenv()
 
+try:
+    # Prefer centralized settings if available
+    from src.core.config import get_settings
+    from src.core.mcp_client import MCPClient
+except Exception:
+    get_settings = None  # type: ignore
+    MCPClient = None  # type: ignore
+
 def load_config() -> Dict[str, str]:
-    """Load configuration from environment variables"""
+    """Load configuration from environment variables or centralized settings."""
+    if get_settings is not None:
+        s = get_settings()
+        return {
+            'elastic_url': s.elastic_url,
+            'elastic_api_key': s.elastic_api_key,
+            'bedrock_region': s.bedrock_region,
+        }
+    # Fallback to legacy env loading
     return {
         'elastic_url': os.getenv('ELASTIC_URL', ''),
         'elastic_api_key': os.getenv('ELASTIC_API_KEY', ''),
@@ -36,11 +52,10 @@ def analyze_query_intent_with_llm(user_query: str, config: Dict[str, str]) -> Di
         return _intent_cache[cache_key]
     
     try:
-        import boto3
-        import time
-        
-        # Initialize Bedrock client
-        bedrock = boto3.client('bedrock-runtime', region_name=config['bedrock_region'])
+        from src.core.llm_client import BedrockLLMClient
+        from src.core.config import get_settings
+        llm = BedrockLLMClient(region_name=config.get('bedrock_region'))
+        settings = get_settings()
         
         # Available MCP tools
         available_tools = [
@@ -122,38 +137,13 @@ Guidelines:
 Be precise and choose the most specific tool that matches the user's intent. Prefer platform_core_search for general product queries as it has broader data access.
 """
         
-        # Call Claude with retry logic
-        max_retries = 3
-        base_delay = 2
-        
-        for attempt in range(max_retries):
-            try:
-                response = bedrock.invoke_model(
-                    modelId='us.anthropic.claude-sonnet-4-5-20250929-v1:0',
-                    body=json.dumps({
-                        "anthropic_version": "bedrock-2023-05-31",
-                        "max_tokens": 500,
-                        "messages": [
-                            {
-                                "role": "user",
-                                "content": intent_prompt
-                            }
-                        ]
-                    })
-                )
-                break  # Success, exit retry loop
-                
-            except Exception as e:
-                if "ThrottlingException" in str(e) and attempt < max_retries - 1:
-                    delay = base_delay * (2 ** attempt)  # Exponential backoff
-                    print(f"Rate limited, waiting {delay} seconds before retry {attempt + 1}/{max_retries}...")
-                    time.sleep(delay)
-                    continue
-                else:
-                    raise e  # Re-raise if not throttling or final attempt
-        
-        response_body = json.loads(response['body'].read())
-        claude_response = response_body['content'][0]['text']
+        model_id = settings.claude_primary_model_id
+        claude_response = llm.invoke_text(
+            model_id=model_id,
+            messages=[{"role": "user", "content": intent_prompt}],
+            max_tokens=500,
+            retries=3,
+        )
         
         # Parse Claude's JSON response
         try:
@@ -357,9 +347,15 @@ def enrich_search_results_with_content(search_result: Dict[str, Any], config: Di
         return enriched_result
 
 def call_mcp_tool(tool_name: str, arguments: Dict[str, Any], config: Dict[str, str]) -> Dict[str, Any]:
-    """Call MCP tool with given arguments"""
-    
-    # Prepare MCP payload
+    """Call MCP tool with given arguments via the centralized MCP client if available."""
+    try:
+        if MCPClient is not None:
+            client = MCPClient(elastic_url=config['elastic_url'], api_key=config['elastic_api_key'])
+            return client.call_tool(tool_name, arguments)
+    except Exception as e:
+        return {'error': f'MCP client call failed: {str(e)}'}
+
+    # Legacy fallback using direct HTTP if centralized client not available
     mcp_payload = {
         'jsonrpc': '2.0',
         'id': 1,
@@ -369,23 +365,19 @@ def call_mcp_tool(tool_name: str, arguments: Dict[str, Any], config: Dict[str, s
             'arguments': arguments
         }
     }
-    
     headers = {
         'Authorization': f'ApiKey {config["elastic_api_key"]}',
         'Content-Type': 'application/json',
         'Accept': 'application/json'
     }
-    
     try:
         response = requests.post(config['elastic_url'], json=mcp_payload, headers=headers)
         response.raise_for_status()
         result = response.json()
-        
         if 'result' in result:
             return result['result']
         else:
             return {'error': 'No result in MCP response', 'raw_response': result}
-            
     except Exception as e:
         return {'error': f'MCP tool call failed: {str(e)}'}
 
@@ -580,11 +572,10 @@ def generate_llm_analysis(user_query: str, mcp_result: Dict[str, Any], config: D
     """Generate comprehensive LLM analysis of grocery/health results"""
     
     try:
-        import boto3
-        import time
-        
-        # Initialize Bedrock client
-        bedrock = boto3.client('bedrock-runtime', region_name=config['bedrock_region'])
+        from src.core.llm_client import BedrockLLMClient
+        from src.core.config import get_settings
+        llm = BedrockLLMClient(region_name=config.get('bedrock_region'))
+        settings = get_settings()
         
         # Prepare results summary for Claude
         results_summary = ""
@@ -701,38 +692,13 @@ Provide a thorough, professional response that directly addresses the user's gro
 Always uses French language
 """
         
-        # Call Claude with retry logic
-        max_retries = 3
-        base_delay = 5  # Increased delay for rate limiting
-        
-        for attempt in range(max_retries):
-            try:
-                response = bedrock.invoke_model(
-                    modelId='us.anthropic.claude-sonnet-4-5-20250929-v1:0',
-                    body=json.dumps({
-                        "anthropic_version": "bedrock-2023-05-31",
-                        "max_tokens": 4000,
-                        "messages": [
-                            {
-                                "role": "user",
-                                "content": analysis_prompt
-                            }
-                        ]
-                    })
-                )
-                break  # Success, exit retry loop
-                
-            except Exception as e:
-                if "ThrottlingException" in str(e) and attempt < max_retries - 1:
-                    delay = base_delay * (2 ** attempt)  # Exponential backoff
-                    print(f"Rate limited, waiting {delay} seconds before retry {attempt + 1}/{max_retries}...")
-                    time.sleep(delay)
-                    continue
-                else:
-                    raise e  # Re-raise if not throttling or final attempt
-        
-        response_body = json.loads(response['body'].read())
-        return response_body['content'][0]['text']
+        model_id = settings.claude_primary_model_id
+        return llm.invoke_text(
+            model_id=model_id,
+            messages=[{"role": "user", "content": analysis_prompt}],
+            max_tokens=4000,
+            retries=3,
+        )
         
     except Exception as e:
         if "ThrottlingException" in str(e):
