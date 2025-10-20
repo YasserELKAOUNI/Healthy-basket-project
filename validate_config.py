@@ -19,12 +19,24 @@ def load_config():
     else:
         print("⚠️  No .env file found, using environment variables")
     
+    # Prefer centralized settings where possible
+    try:
+        from src.core.config import get_settings
+        s = get_settings()
+        elastic_url = s.elastic_url or os.getenv('ELASTIC_URL', '')
+        elastic_api_key = s.elastic_api_key or os.getenv('ELASTIC_API_KEY')
+        aws_region = s.bedrock_region or os.getenv('BEDROCK_REGION', 'us-east-1')
+    except Exception:
+        elastic_url = os.getenv('ELASTIC_URL', '')
+        elastic_api_key = os.getenv('ELASTIC_API_KEY')
+        aws_region = os.getenv('BEDROCK_REGION', 'us-east-1')
+
     return {
         'aws_access_key': os.getenv('AWS_ACCESS_KEY_ID'),
         'aws_secret_key': os.getenv('AWS_SECRET_ACCESS_KEY'),
-        'aws_region': os.getenv('BEDROCK_REGION', 'us-east-1'),
-        'elastic_url': os.getenv('ELASTIC_URL', 'https://searchsearch-a9ed61.kb.europe-west1.gcp.elastic.cloud'),
-        'elastic_api_key': os.getenv('ELASTIC_API_KEY')
+        'aws_region': aws_region,
+        'elastic_url': elastic_url,
+        'elastic_api_key': elastic_api_key
     }
 
 def validate_aws_config(config):
@@ -76,44 +88,13 @@ def validate_elastic_config(config):
     
     # Test Elastic connection
     try:
-        import requests
-        
-        headers = {
-            'Authorization': f"ApiKey {config['elastic_api_key']}",
-            'Content-Type': 'application/json',
-            'Accept': 'application/json'
-        }
-        
-        # Test MCP initialization
-        mcp_payload = {
-            "jsonrpc": "2.0",
-            "id": 1,
-            "method": "initialize",
-            "params": {
-                "protocolVersion": "2024-11-05",
-                "capabilities": {},
-                "clientInfo": {
-                    "name": "email-phishing-agent",
-                    "version": "1.0.0"
-                }
-            }
-        }
-        
-        response = requests.post(config['elastic_url'], headers=headers, json=mcp_payload, timeout=10)
-        
-        if response.status_code == 200:
-            result = response.json()
-            if 'result' in result:
-                print("✅ Elastic MCP Server connection verified")
-                print(f"   Server: {result['result'].get('serverInfo', {}).get('name', 'Unknown')}")
-                return True
-            else:
-                print(f"❌ MCP initialization failed: {result}")
-                return False
-        else:
-            print(f"❌ Elastic MCP Server connection failed: HTTP {response.status_code}")
-            return False
-            
+        # Use MCPClient to verify tools list as a connectivity check
+        from src.core.mcp_client import MCPClient
+        client = MCPClient(elastic_url=config['elastic_url'], api_key=config['elastic_api_key'])
+        tools = client.list_tools()
+        print("✅ Elastic MCP Server connection verified")
+        print(f"   Tools available: {len(tools)}")
+        return True
     except Exception as e:
         print(f"❌ Elastic MCP Server connection failed: {e}")
         return False

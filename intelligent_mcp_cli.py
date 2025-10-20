@@ -6,18 +6,19 @@ Uses Claude to decide which MCP tools to call based on user queries
 
 import argparse
 import json
-import requests
-import os
+from src.core.config import get_settings
+from src.core.mcp_client import MCPClient
+from src.core.llm_client import BedrockLLMClient
 from dotenv import load_dotenv
 from typing import Dict, Any, List, Optional
 
 def load_config():
-    """Load configuration from environment variables"""
-    load_dotenv()
+    """Load configuration from centralized settings"""
+    s = get_settings()
     return {
-        'elastic_url': os.getenv('ELASTIC_URL'),
-        'elastic_api_key': os.getenv('ELASTIC_API_KEY'),
-        'bedrock_region': os.getenv('BEDROCK_REGION', 'us-east-1')
+        'elastic_url': s.elastic_url,
+        'elastic_api_key': s.elastic_api_key,
+        'bedrock_region': s.bedrock_region,
     }
 
 def call_mcp_tool(tool_name: str, arguments: Dict[str, Any], config: Dict[str, str]) -> Dict[str, Any]:
@@ -33,26 +34,8 @@ def call_mcp_tool(tool_name: str, arguments: Dict[str, Any], config: Dict[str, s
         }
     }
     
-    headers = {
-        'Authorization': f'ApiKey {config["elastic_api_key"]}',
-        'Content-Type': 'application/json',
-        'Accept': 'application/json'
-    }
-    
-    try:
-        response = requests.post(config['elastic_url'], json=mcp_payload, headers=headers)
-        response.raise_for_status()
-        result = response.json()
-        
-        if 'result' in result:
-            return result['result']
-        else:
-            print(f"MCP tool call failed: {result}")
-            return {}
-            
-    except requests.exceptions.RequestException as e:
-        print(f"Error calling MCP tool {tool_name}: {e}")
-        return {}
+    client = MCPClient(elastic_url=config['elastic_url'], api_key=config['elastic_api_key'])
+    return client.call_tool(tool_name, arguments)
 
 def get_available_tools(config: Dict[str, str]) -> List[Dict[str, Any]]:
     """Get list of available MCP tools"""
@@ -63,34 +46,17 @@ def get_available_tools(config: Dict[str, str]) -> List[Dict[str, Any]]:
         'method': 'tools/list'
     }
     
-    headers = {
-        'Authorization': f'ApiKey {config["elastic_api_key"]}',
-        'Content-Type': 'application/json',
-        'Accept': 'application/json'
-    }
-    
+    client = MCPClient(elastic_url=config['elastic_url'], api_key=config['elastic_api_key'])
     try:
-        response = requests.post(config['elastic_url'], json=mcp_payload, headers=headers)
-        response.raise_for_status()
-        result = response.json()
-        
-        if 'result' in result:
-            return result['result'].get('tools', [])
-        else:
-            return []
-            
-    except Exception as e:
-        print(f"Error getting tools list: {e}")
+        return client.list_tools()
+    except Exception:
         return []
 
 def let_claude_decide_tools(user_query: str, available_tools: List[Dict[str, Any]], config: Dict[str, str]) -> str:
     """Let Claude decide which MCP tools to call based on the user query"""
     
     try:
-        import boto3
-        
-        # Initialize Bedrock client
-        bedrock = boto3.client('bedrock-runtime', region_name=config['bedrock_region'])
+        llm = BedrockLLMClient(region_name=config['bedrock_region'])
         
         # Create tools description for Claude
         tools_description = ""
@@ -139,22 +105,11 @@ IMPORTANT:
 """
         
         # Call Claude for tool selection
-        response = bedrock.invoke_model(
-            modelId='anthropic.claude-3-5-sonnet-20240620-v1:0',
-            body=json.dumps({
-                "anthropic_version": "bedrock-2023-05-31",
-                "max_tokens": 2000,
-                "messages": [
-                    {
-                        "role": "user",
-                        "content": decision_prompt
-                    }
-                ]
-            })
+        return llm.invoke_text(
+            model_id='anthropic.claude-3-5-sonnet-20240620-v1:0',
+            messages=[{"role": "user", "content": decision_prompt}],
+            max_tokens=2000,
         )
-        
-        response_body = json.loads(response['body'].read())
-        return response_body['content'][0]['text']
         
     except Exception as e:
         return f"Tool selection failed: {str(e)}"
@@ -189,10 +144,7 @@ def analyze_results_with_claude(user_query: str, tool_results: List[Dict[str, An
     """Use Claude to analyze the MCP tool results and provide comprehensive response"""
     
     try:
-        import boto3
-        
-        # Initialize Bedrock client
-        bedrock = boto3.client('bedrock-runtime', region_name=config['bedrock_region'])
+        llm = BedrockLLMClient(region_name=config['bedrock_region'])
         
         # Prepare results summary for Claude
         results_summary = ""
@@ -240,22 +192,11 @@ Provide a thorough, professional response that directly addresses the user's que
 """
         
         # Call Claude for analysis
-        response = bedrock.invoke_model(
-            modelId='anthropic.claude-3-5-sonnet-20240620-v1:0',
-            body=json.dumps({
-                "anthropic_version": "bedrock-2023-05-31",
-                "max_tokens": 4000,
-                "messages": [
-                    {
-                        "role": "user",
-                        "content": analysis_prompt
-                    }
-                ]
-            })
+        return llm.invoke_text(
+            model_id='anthropic.claude-3-5-sonnet-20240620-v1:0',
+            messages=[{"role": "user", "content": analysis_prompt}],
+            max_tokens=4000,
         )
-        
-        response_body = json.loads(response['body'].read())
-        return response_body['content'][0]['text']
         
     except Exception as e:
         return f"Analysis failed: {str(e)}"

@@ -6,53 +6,24 @@ Uses MCP tools directly for all operations
 
 import argparse
 import json
-import requests
-import os
-from dotenv import load_dotenv
 from typing import Dict, Any, List
+from src.core.config import get_settings
+from src.core.mcp_client import MCPClient, parse_mcp_content_text
+from src.core.llm_client import BedrockLLMClient
 
 def load_config():
-    """Load configuration from environment variables"""
-    load_dotenv()
+    """Load configuration from centralized settings."""
+    s = get_settings()
     return {
-        'elastic_url': os.getenv('ELASTIC_URL'),
-        'elastic_api_key': os.getenv('ELASTIC_API_KEY'),
-        'bedrock_region': os.getenv('BEDROCK_REGION', 'us-east-1')
+        'elastic_url': s.elastic_url,
+        'elastic_api_key': s.elastic_api_key,
+        'bedrock_region': s.bedrock_region,
     }
 
 def call_mcp_tool(tool_name: str, arguments: Dict[str, Any], config: Dict[str, str]) -> Dict[str, Any]:
-    """Call an MCP tool directly"""
-    
-    mcp_payload = {
-        "jsonrpc": "2.0",
-        "id": 1,
-        "method": "tools/call",
-        "params": {
-            "name": tool_name,
-            "arguments": arguments
-        }
-    }
-    
-    headers = {
-        'Authorization': f'ApiKey {config["elastic_api_key"]}',
-        'Content-Type': 'application/json',
-        'Accept': 'application/json'
-    }
-    
-    try:
-        response = requests.post(config['elastic_url'], json=mcp_payload, headers=headers)
-        response.raise_for_status()
-        result = response.json()
-        
-        if 'result' in result:
-            return result['result']
-        else:
-            print(f"MCP tool call failed: {result}")
-            return {}
-            
-    except requests.exceptions.RequestException as e:
-        print(f"Error calling MCP tool {tool_name}: {e}")
-        return {}
+    """Call an MCP tool via MCPClient facade."""
+    client = MCPClient(elastic_url=config['elastic_url'], api_key=config['elastic_api_key'])
+    return client.call_tool(tool_name, arguments)
 
 def search_emails_mcp(query: str, config: Dict[str, str], size: int = 10) -> List[Dict[str, Any]]:
     """Search emails using MCP platform_core_search tool"""
@@ -71,9 +42,8 @@ def search_emails_mcp(query: str, config: Dict[str, str], size: int = 10) -> Lis
     
     # Parse MCP response format
     hits = []
-    if 'content' in result and result['content']:
-        content_text = result['content'][0]['text']
-        parsed_results = json.loads(content_text)
+    parsed_results = parse_mcp_content_text(result)
+    if parsed_results:
         
         if 'results' in parsed_results:
             for item in parsed_results['results'][:size]:
@@ -104,9 +74,9 @@ def get_email_by_id_mcp(email_id: str, config: Dict[str, str]) -> Dict[str, Any]
         return {}
     
     # Parse MCP response format
-    if 'content' in result and result['content']:
-        content_text = result['content'][0]['text']
-        return json.loads(content_text)
+    parsed = parse_mcp_content_text(result)
+    if parsed:
+        return parsed
     
     return {}
 
@@ -122,9 +92,8 @@ def list_indices_mcp(config: Dict[str, str]) -> List[Dict[str, Any]]:
     
     # Parse MCP response format
     indices = []
-    if 'content' in result and result['content']:
-        content_text = result['content'][0]['text']
-        parsed_results = json.loads(content_text)
+    parsed_results = parse_mcp_content_text(result)
+    if parsed_results:
         indices = parsed_results.get('indices', [])
     
     return indices
@@ -143,9 +112,9 @@ def get_index_mapping_mcp(index_name: str, config: Dict[str, str]) -> Dict[str, 
         return {}
     
     # Parse MCP response format
-    if 'content' in result and result['content']:
-        content_text = result['content'][0]['text']
-        return json.loads(content_text)
+    parsed = parse_mcp_content_text(result)
+    if parsed:
+        return parsed
     
     return {}
 
@@ -153,10 +122,7 @@ def analyze_with_claude(query: str, hits: List[Dict[str, Any]], config: Dict[str
     """Analyze search results using Claude via Bedrock"""
     
     try:
-        import boto3
-        
-        # Initialize Bedrock client
-        bedrock = boto3.client('bedrock-runtime', region_name=config['bedrock_region'])
+        llm = BedrockLLMClient(region_name=config['bedrock_region'])
         
         # Prepare analysis prompt
         analysis_prompt = f"""
@@ -179,22 +145,11 @@ Format your response clearly with headers and bullet points.
 """
         
         # Call Claude
-        response = bedrock.invoke_model(
-            modelId='anthropic.claude-3-5-sonnet-20240620-v1:0',
-            body=json.dumps({
-                "anthropic_version": "bedrock-2023-05-31",
-                "max_tokens": 2000,
-                "messages": [
-                    {
-                        "role": "user",
-                        "content": analysis_prompt
-                    }
-                ]
-            })
+        return llm.invoke_text(
+            model_id='anthropic.claude-3-5-sonnet-20240620-v1:0',
+            messages=[{"role": "user", "content": analysis_prompt}],
+            max_tokens=2000,
         )
-        
-        response_body = json.loads(response['body'].read())
-        return response_body['content'][0]['text']
         
     except Exception as e:
         return f"Analysis failed: {str(e)}"
@@ -203,10 +158,7 @@ def generate_text_from_document(email_data: Dict[str, Any], config: Dict[str, st
     """Generate comprehensive text analysis from email document using Claude"""
     
     try:
-        import boto3
-        
-        # Initialize Bedrock client
-        bedrock = boto3.client('bedrock-runtime', region_name=config['bedrock_region'])
+        llm = BedrockLLMClient(region_name=config['bedrock_region'])
         
         # Extract key information from the document structure
         if 'results' in email_data and email_data['results']:
@@ -285,22 +237,11 @@ Generate a thorough, professional analysis suitable for a cybersecurity report. 
 """
         
         # Call Claude
-        response = bedrock.invoke_model(
-            modelId='anthropic.claude-3-5-sonnet-20240620-v1:0',
-            body=json.dumps({
-                "anthropic_version": "bedrock-2023-05-31",
-                "max_tokens": 4000,  # Increased for comprehensive analysis
-                "messages": [
-                    {
-                        "role": "user",
-                        "content": text_prompt
-                    }
-                ]
-            })
+        return llm.invoke_text(
+            model_id='anthropic.claude-3-5-sonnet-20240620-v1:0',
+            messages=[{"role": "user", "content": text_prompt}],
+            max_tokens=4000,
         )
-        
-        response_body = json.loads(response['body'].read())
-        return response_body['content'][0]['text']
         
     except Exception as e:
         return f"Text generation failed: {str(e)}"

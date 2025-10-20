@@ -6,54 +6,27 @@ Uses intelligent rules to decide which MCP tools to call based on user queries
 
 import argparse
 import json
-import requests
-import os
+from src.core.config import get_settings
+from src.core.mcp_client import MCPClient, parse_mcp_content_text
+from src.core.llm_client import BedrockLLMClient
 import re
 from dotenv import load_dotenv
 from typing import Dict, Any, List, Optional
 
 def load_config():
-    """Load configuration from environment variables"""
-    load_dotenv()
+    """Load configuration from centralized settings"""
+    s = get_settings()
     return {
-        'elastic_url': os.getenv('ELASTIC_URL'),
-        'elastic_api_key': os.getenv('ELASTIC_API_KEY'),
-        'bedrock_region': os.getenv('BEDROCK_REGION', 'us-east-1')
+        'elastic_url': s.elastic_url,
+        'elastic_api_key': s.elastic_api_key,
+        'bedrock_region': s.bedrock_region,
     }
 
 def call_mcp_tool(tool_name: str, arguments: Dict[str, Any], config: Dict[str, str]) -> Dict[str, Any]:
     """Call an MCP tool directly"""
     
-    mcp_payload = {
-        "jsonrpc": "2.0",
-        "id": 1,
-        "method": "tools/call",
-        "params": {
-            "name": tool_name,
-            "arguments": arguments
-        }
-    }
-    
-    headers = {
-        'Authorization': f'ApiKey {config["elastic_api_key"]}',
-        'Content-Type': 'application/json',
-        'Accept': 'application/json'
-    }
-    
-    try:
-        response = requests.post(config['elastic_url'], json=mcp_payload, headers=headers)
-        response.raise_for_status()
-        result = response.json()
-        
-        if 'result' in result:
-            return result['result']
-        else:
-            print(f"MCP tool call failed: {result}")
-            return {}
-            
-    except requests.exceptions.RequestException as e:
-        print(f"Error calling MCP tool {tool_name}: {e}")
-        return {}
+    client = MCPClient(elastic_url=config['elastic_url'], api_key=config['elastic_api_key'])
+    return client.call_tool(tool_name, arguments)
 
 def analyze_query_intent(user_query: str) -> Dict[str, Any]:
     """Analyze user query to determine intent and required tools"""
@@ -189,12 +162,13 @@ def execute_smart_query(user_query: str, config: Dict[str, str]) -> Dict[str, An
 def format_search_results(result: Dict[str, Any]) -> str:
     """Format search results for display"""
     
-    if not result or 'content' not in result:
+    if not result:
         return "No results found."
     
     try:
-        content_text = result['content'][0]['text']
-        parsed_results = json.loads(content_text)
+        parsed_results = parse_mcp_content_text(result)
+        if parsed_results is None:
+            return "No search results found."
         
         if 'results' not in parsed_results:
             return "No search results found."
@@ -224,12 +198,13 @@ def format_search_results(result: Dict[str, Any]) -> str:
 def format_document_result(result: Dict[str, Any]) -> str:
     """Format document result for display"""
     
-    if not result or 'content' not in result:
+    if not result:
         return "Document not found."
     
     try:
-        content_text = result['content'][0]['text']
-        parsed_results = json.loads(content_text)
+        parsed_results = parse_mcp_content_text(result)
+        if parsed_results is None:
+            return "Document not found."
         
         if 'results' not in parsed_results or not parsed_results['results']:
             return "Document not found."
@@ -259,10 +234,7 @@ def generate_llm_analysis(user_query: str, mcp_result: Dict[str, Any], config: D
     """Generate comprehensive LLM analysis of MCP results"""
     
     try:
-        import boto3
-        
-        # Initialize Bedrock client
-        bedrock = boto3.client('bedrock-runtime', region_name=config['bedrock_region'])
+        llm = BedrockLLMClient(region_name=config['bedrock_region'])
         
         # Prepare results summary for Claude
         results_summary = ""
@@ -348,22 +320,11 @@ Provide a thorough, professional response that directly addresses the user's que
 """
         
         # Call Claude
-        response = bedrock.invoke_model(
-            modelId='anthropic.claude-3-5-sonnet-20240620-v1:0',
-            body=json.dumps({
-                "anthropic_version": "bedrock-2023-05-31",
-                "max_tokens": 4000,
-                "messages": [
-                    {
-                        "role": "user",
-                        "content": analysis_prompt
-                    }
-                ]
-            })
+        return llm.invoke_text(
+            model_id='anthropic.claude-3-5-sonnet-20240620-v1:0',
+            messages=[{"role": "user", "content": analysis_prompt}],
+            max_tokens=4000,
         )
-        
-        response_body = json.loads(response['body'].read())
-        return response_body['content'][0]['text']
         
     except Exception as e:
         return f"LLM analysis failed: {str(e)}"
