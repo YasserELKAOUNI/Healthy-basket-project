@@ -76,18 +76,15 @@ Navigate to: **http://localhost:8000**
 
 ## 🔧 CLI Usage
 
-### Smart Grocery CLI
+### Smart Grocery CLI (Service-based)
 ```bash
 # Full AI analysis with Claude 4.5 (default)
-python smart_grocery_cli.py "Find healthy breakfast options"
-python smart_grocery_cli.py "Find red wine"
-python smart_grocery_cli.py "Find current promotions"
+python smart_grocery_service_cli.py "Find healthy breakfast options"
+python smart_grocery_service_cli.py "Find red wine"
+python smart_grocery_service_cli.py "Find current promotions"
 
 # Raw results only (bypasses LLM for faster results)
-python smart_grocery_cli.py "Find healthy breakfast options" --no-llm
-
-# Rule-based analysis (fallback when LLM is rate limited)
-python smart_grocery_cli.py "Find red wine" --no-llm
+python smart_grocery_service_cli.py "Find healthy breakfast options" --no-llm
 ```
 
 ### Available Commands
@@ -258,7 +255,7 @@ You now have a fully functional groceries health basket analysis system! The sys
 
 ## 📝 Project Files
 
-- **`smart_grocery_cli.py`**: Main CLI with LLM-powered intent analysis
+- **`smart_grocery_service_cli.py`**: Main CLI with LLM-powered intent analysis (legacy `smart_grocery_cli.py` deprecated)
 - **`web_ui.py`**: FastAPI web interface
 - **`start_web_ui.py`**: Web server launcher
 - **`config.env.example`**: Environment configuration template
