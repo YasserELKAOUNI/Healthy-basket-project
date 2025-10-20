@@ -16,13 +16,14 @@ from typing import Any, Dict, List, Optional, Tuple
 import requests
 
 from .config import get_settings
+from src.adapters.tool_invoker import ToolInvoker
 
 
 class MCPError(RuntimeError):
     pass
 
 
-class MCPClient:
+class MCPClient(ToolInvoker):
     def __init__(self, *, elastic_url: Optional[str] = None, api_key: Optional[str] = None, timeout_s: Optional[int] = None):
         cfg = get_settings()
         self.base_url = elastic_url or cfg.elastic_url
@@ -106,4 +107,3 @@ def get_document_and_parse(client: MCPClient, *, index: str, id: str) -> Tuple[D
     raw = client.platform_core_get_document_by_id(index=index, id=id)
     parsed = parse_mcp_content_text(raw)
     return raw, parsed
-

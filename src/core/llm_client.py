@@ -17,13 +17,14 @@ except Exception:  # pragma: no cover - optional import in some environments
     boto3 = None  # type: ignore
 
 from .config import get_settings
+from src.adapters.llm_client import LLMClient as LLMClientProtocol
 
 
 class LLMInvokeError(RuntimeError):
     pass
 
 
-class BedrockLLMClient:
+class BedrockLLMClient(LLMClientProtocol):
     def __init__(self, *, region_name: Optional[str] = None):
         cfg = get_settings()
         region = region_name or cfg.bedrock_region
@@ -81,4 +82,3 @@ class BedrockLLMClient:
             return data['content'][0]['text']
         except Exception as e:  # noqa: PERF203
             raise LLMInvokeError(f"Unexpected Bedrock response format: {e}") from e
-

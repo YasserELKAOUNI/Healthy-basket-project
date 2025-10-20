@@ -13,6 +13,8 @@ import re
 from src.core.config import get_settings
 from src.core.mcp_client import MCPClient, parse_mcp_content_text
 from src.core.llm_client import BedrockLLMClient
+from src.adapters.tool_invoker import ToolInvoker
+from src.adapters.llm_client import LLMClient as LLMClientProtocol
 
 
 _INTENT_CACHE: Dict[str, Dict[str, Any]] = {}
@@ -89,13 +91,13 @@ def _analyze_query_intent_rule_based(user_query: str) -> Dict[str, Any]:
     return {'intent': 'search_groceries', 'action': 'search_groceries', 'tool': 'platform_core_search', 'confidence': 0.5}
 
 
-def _analyze_query_intent_with_llm(user_query: str) -> Dict[str, Any]:
+def _analyze_query_intent_with_llm(user_query: str, llm: LLMClientProtocol | None = None) -> Dict[str, Any]:
     cache_key = user_query.lower().strip()
     if cache_key in _INTENT_CACHE:
         return _INTENT_CACHE[cache_key]
 
     cfg = get_settings()
-    llm = BedrockLLMClient(region_name=cfg.bedrock_region)
+    llm = llm or BedrockLLMClient(region_name=cfg.bedrock_region)
     tools_descr = [
         {"name": "platform_core_search", "description": "General search across indices"},
         {"name": "catalog_products_search", "description": "Search grocery products"},
@@ -174,9 +176,9 @@ def _enrich_search_results_with_content(raw: Dict[str, Any], client: MCPClient) 
     return out
 
 
-def _generate_llm_analysis(user_query: str, mcp_result: Dict[str, Any]) -> str:
+def _generate_llm_analysis(user_query: str, mcp_result: Dict[str, Any], llm: LLMClientProtocol | None = None) -> str:
     cfg = get_settings()
-    llm = BedrockLLMClient(region_name=cfg.bedrock_region)
+    llm = llm or BedrockLLMClient(region_name=cfg.bedrock_region)
     # Summarize results similarly to CLI implementation
     summary = ""
     if 'enriched_content' in mcp_result:
@@ -218,12 +220,18 @@ Produce a comprehensive French analysis with the following sections:
     )
 
 
-def execute(query: str, *, use_llm: bool = True) -> Dict[str, Any]:
+def execute(
+    query: str,
+    *,
+    use_llm: bool = True,
+    tool_invoker: ToolInvoker | None = None,
+    llm_client: LLMClientProtocol | None = None,
+) -> Dict[str, Any]:
     cfg = get_settings()
-    client = MCPClient()
+    client = tool_invoker or MCPClient()
 
     # Intent
-    intent = _analyze_query_intent_with_llm(query) if use_llm else _analyze_query_intent_rule_based(query)
+    intent = _analyze_query_intent_with_llm(query, llm_client) if use_llm else _analyze_query_intent_rule_based(query)
 
     # Build args and call tool
     args = _build_arguments(intent['tool'], query, cfg.products_index)
@@ -240,7 +248,6 @@ def execute(query: str, *, use_llm: bool = True) -> Dict[str, Any]:
     }
 
     if use_llm:
-        out['llm_analysis'] = _generate_llm_analysis(query, raw)
+        out['llm_analysis'] = _generate_llm_analysis(query, raw, llm_client)
 
     return out
-
