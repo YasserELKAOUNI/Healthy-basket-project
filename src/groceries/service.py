@@ -15,6 +15,8 @@ from src.core.mcp_client import MCPClient, parse_mcp_content_text
 from src.core.llm_client import BedrockLLMClient
 from src.adapters.tool_invoker import ToolInvoker
 from src.adapters.llm_client import LLMClient as LLMClientProtocol
+from src.core.constants import SCHEMA_VERSION
+from src.core.schemas import try_validate_search_payload
 
 
 _INTENT_CACHE: Dict[str, Dict[str, Any]] = {}
@@ -156,7 +158,9 @@ def _enrich_search_results_with_content(raw: Dict[str, Any], client: MCPClient) 
     parsed = parse_mcp_content_text(raw)
     if not parsed or 'results' not in parsed:
         return raw
-    hits = parsed['results']
+    # Attempt validation; fall back to raw dict access
+    validated = try_validate_search_payload(parsed)
+    hits = parsed['results'] if validated is None else [h.model_dump() for h in validated.results]
     enriched_hits: List[Dict[str, Any]] = []
     for hit in hits[:5]:
         ref = hit.get('data', {}).get('reference', {})
@@ -245,6 +249,7 @@ def execute(
         'query': query,
         'intent': intent,
         'mcp_result': raw,
+        'schema_version': SCHEMA_VERSION,
     }
 
     if use_llm:
