@@ -3,7 +3,7 @@
 Web UI for Smart MCP-based Email Phishing Analysis
 """
 
-from fastapi import FastAPI, Request, Form, HTTPException
+from fastapi import FastAPI, Request, Form, HTTPException, APIRouter
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -23,8 +23,10 @@ from src.groceries.formatting import (
 )
 from src.core.mcp_client import MCPClient
 from src.core.config import get_settings
+from src.api.models import AnalyzeResponse, ToolListResponse, HealthResponse, ToolHints, ToolInfo
 
 app = FastAPI(title="Smart MCP Groceries Health Basket Analysis UI", version="1.0.0")
+router_v1 = APIRouter(prefix="/api/v1")
 
 # Templates directory
 templates = Jinja2Templates(directory="templates")
@@ -100,6 +102,47 @@ async def get_status():
         "config_loaded": bool(s.elastic_url and s.elastic_api_key),
         "timestamp": datetime.now().isoformat()
     })
+
+
+# v1 API: typed routes
+@router_v1.post("/analyze", response_model=AnalyzeResponse)
+async def analyze_v1(query: str, use_llm: bool = True):
+    result = groceries_execute(query, use_llm=use_llm)
+    return AnalyzeResponse(**result)
+
+
+@router_v1.get("/tools", response_model=ToolListResponse)
+async def tools_v1():
+    client = MCPClient()
+    client.initialize(client_name="healthy-basket-ui", client_version="1.0.0")
+    tools = client.list_tools()
+    enriched = []
+    for t in tools:
+        ann = t.get("annotations") or {}
+        hints = ToolHints(
+            readOnly=bool(ann.get("readOnlyHint", False)),
+            destructive=bool(ann.get("destructiveHint", False)),
+            idempotent=bool(ann.get("idempotentHint", False)),
+            openWorld=bool(ann.get("openWorldHint", False)),
+        )
+        item = ToolInfo(
+            name=t.get("name"),
+            description=t.get("description"),
+            input_schema=t.get("input_schema") or t.get("inputSchema"),
+            annotations=ann,
+            hints=hints,
+        )
+        enriched.append(item)
+    return ToolListResponse(tools=enriched)
+
+
+@router_v1.get("/health", response_model=HealthResponse)
+async def health_v1():
+    s = get_settings()
+    return HealthResponse(status="online", config_loaded=bool(s.elastic_url and s.elastic_api_key), timestamp=datetime.now().isoformat())
+
+
+app.include_router(router_v1)
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
