@@ -72,8 +72,21 @@ async def get_available_tools():
     """Get available MCP tools"""
     try:
         client = MCPClient()
+        client.initialize(client_name="healthy-basket-ui", client_version="1.0.0")
         tools = client.list_tools()
-        return JSONResponse(content={"tools": tools})
+        enriched: List[Dict[str, Any]] = []
+        for t in tools:
+            ann = t.get("annotations") or {}
+            hints = {
+                "readOnly": bool(ann.get("readOnlyHint", False)),
+                "destructive": bool(ann.get("destructiveHint", False)),
+                "idempotent": bool(ann.get("idempotentHint", False)),
+                "openWorld": bool(ann.get("openWorldHint", False)),
+            }
+            item = dict(t)
+            item["hints"] = hints
+            enriched.append(item)
+        return JSONResponse(content={"tools": enriched})
             
     except Exception as e:
         return JSONResponse(content={"tools": [], "error": str(e)})
