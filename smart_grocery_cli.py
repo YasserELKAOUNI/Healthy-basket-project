@@ -15,8 +15,24 @@ from dotenv import load_dotenv
 # Load environment variables
 load_dotenv()
 
+try:
+    # Prefer centralized settings if available
+    from src.core.config import get_settings
+    from src.core.mcp_client import MCPClient
+except Exception:
+    get_settings = None  # type: ignore
+    MCPClient = None  # type: ignore
+
 def load_config() -> Dict[str, str]:
-    """Load configuration from environment variables"""
+    """Load configuration from environment variables or centralized settings."""
+    if get_settings is not None:
+        s = get_settings()
+        return {
+            'elastic_url': s.elastic_url,
+            'elastic_api_key': s.elastic_api_key,
+            'bedrock_region': s.bedrock_region,
+        }
+    # Fallback to legacy env loading
     return {
         'elastic_url': os.getenv('ELASTIC_URL', ''),
         'elastic_api_key': os.getenv('ELASTIC_API_KEY', ''),
@@ -357,9 +373,15 @@ def enrich_search_results_with_content(search_result: Dict[str, Any], config: Di
         return enriched_result
 
 def call_mcp_tool(tool_name: str, arguments: Dict[str, Any], config: Dict[str, str]) -> Dict[str, Any]:
-    """Call MCP tool with given arguments"""
-    
-    # Prepare MCP payload
+    """Call MCP tool with given arguments via the centralized MCP client if available."""
+    try:
+        if MCPClient is not None:
+            client = MCPClient(elastic_url=config['elastic_url'], api_key=config['elastic_api_key'])
+            return client.call_tool(tool_name, arguments)
+    except Exception as e:
+        return {'error': f'MCP client call failed: {str(e)}'}
+
+    # Legacy fallback using direct HTTP if centralized client not available
     mcp_payload = {
         'jsonrpc': '2.0',
         'id': 1,
@@ -369,23 +391,19 @@ def call_mcp_tool(tool_name: str, arguments: Dict[str, Any], config: Dict[str, s
             'arguments': arguments
         }
     }
-    
     headers = {
         'Authorization': f'ApiKey {config["elastic_api_key"]}',
         'Content-Type': 'application/json',
         'Accept': 'application/json'
     }
-    
     try:
         response = requests.post(config['elastic_url'], json=mcp_payload, headers=headers)
         response.raise_for_status()
         result = response.json()
-        
         if 'result' in result:
             return result['result']
         else:
             return {'error': 'No result in MCP response', 'raw_response': result}
-            
     except Exception as e:
         return {'error': f'MCP tool call failed: {str(e)}'}
 
