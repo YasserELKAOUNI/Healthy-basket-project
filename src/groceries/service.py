@@ -196,7 +196,7 @@ def _enrich_search_results_with_content(raw: Dict[str, Any], client: MCPClient, 
         index_name = ref.get('index')
         if not (doc_id and index_name):
             continue
-        doc_raw = client.platform_core_get_document_by_id(index=index_name, id=doc_id)
+        doc_raw = client.call_tool('platform_core_get_document_by_id', {'index': index_name, 'id': doc_id})
         enriched_hits.append({
             'id': doc_id,
             'index': index_name,
