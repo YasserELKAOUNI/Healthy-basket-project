@@ -63,14 +63,15 @@ def test_rule_based_intent_search():
 
 
 def test_enrichment_with_fake_invoker():
-    res = service.execute("find apples", use_llm=False, tool_invoker=FakeToolInvoker())
+    res = service.execute("find apples", use_llm=False, tool_invoker=FakeToolInvoker(), limit=1, offset=0, top_n=1)
     m = res["mcp_result"]
     assert "enriched_content" in m
-    assert m["enriched_content"]["enriched_hits"]
+    assert len(m["enriched_content"]["enriched_hits"]) == 1
+    assert res.get("pagination", {}).get("limit") == 1
+    assert res.get("pagination", {}).get("has_more") in (True, False)
 
 
 def test_llm_injection():
     res = service.execute("find bananas", use_llm=True, tool_invoker=FakeToolInvoker(), llm_client=FakeLLM())
     assert "llm_analysis" in res
     assert res["llm_analysis"].startswith("FAKE LLM ANALYSIS")
-
