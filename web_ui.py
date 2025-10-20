@@ -17,7 +17,7 @@ from datetime import datetime
 
 # Import our smart grocery MCP CLI functions
 from src.groceries.service import execute as groceries_execute
-from smart_grocery_cli import (
+from src.groceries.formatting import (
     format_search_results,
     format_product_result,
 )

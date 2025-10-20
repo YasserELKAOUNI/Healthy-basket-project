@@ -10,6 +10,7 @@ import os
 import re
 import requests
 from typing import Dict, Any, List, Optional
+from src.groceries.formatting import format_search_results, format_product_result
 from dotenv import load_dotenv
 
 # Load environment variables
