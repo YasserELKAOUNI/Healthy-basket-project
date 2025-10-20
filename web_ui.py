@@ -21,11 +21,10 @@ from smart_grocery_cli import (
     format_search_results,
     format_product_result,
 )
+from src.core.mcp_client import MCPClient
+from src.core.config import get_settings
 
 app = FastAPI(title="Smart MCP Groceries Health Basket Analysis UI", version="1.0.0")
-
-# Configuration is provided via src.core.config inside the service
-config = None
 
 # Templates directory
 templates = Jinja2Templates(directory="templates")
@@ -72,28 +71,9 @@ async def analyze_query(
 async def get_available_tools():
     """Get available MCP tools"""
     try:
-        mcp_payload = {
-            'jsonrpc': '2.0',
-            'id': 1,
-            'method': 'tools/list'
-        }
-        
-        headers = {
-            'Authorization': f'ApiKey {config["elastic_api_key"]}',
-            'Content-Type': 'application/json',
-            'Accept': 'application/json'
-        }
-        
-        import requests
-        response = requests.post(config['elastic_url'], json=mcp_payload, headers=headers)
-        response.raise_for_status()
-        result = response.json()
-        
-        if 'result' in result:
-            tools = result['result'].get('tools', [])
-            return JSONResponse(content={"tools": tools})
-        else:
-            return JSONResponse(content={"tools": []})
+        client = MCPClient()
+        tools = client.list_tools()
+        return JSONResponse(content={"tools": tools})
             
     except Exception as e:
         return JSONResponse(content={"tools": [], "error": str(e)})
@@ -101,9 +81,10 @@ async def get_available_tools():
 @app.get("/api/status")
 async def get_status():
     """Get system status"""
+    s = get_settings()
     return JSONResponse(content={
         "status": "online",
-        "config_loaded": bool(config.get('elastic_url') and config.get('elastic_api_key')),
+        "config_loaded": bool(s.elastic_url and s.elastic_api_key),
         "timestamp": datetime.now().isoformat()
     })
 
